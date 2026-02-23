@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { useTTS } from "@/hooks/use-scans";
 import { useEffect, useRef, useState } from "react";
 import type { Scan } from "@shared/schema";
+import { jsPDF } from "jspdf";
+import "jspdf-autotable";
 
 interface ResultCardProps {
   scan: Scan;
@@ -48,8 +50,8 @@ export function ResultCard({ scan }: ResultCardProps) {
   }, [scan, generateSpeech]);
 
   const handleShare = (platform: "whatsapp" | "email" | "telegram") => {
-    const text = `I just analyzed a file with Real Check AI. Result: ${scan.result} (${scan.confidence}% confidence).`;
-    const url = window.location.href;
+    const text = `I just analyzed a file with Real Check AI. Result: ${scan.result} (${scan.confidence}% confidence). Check it out here:`;
+    const url = window.location.origin; // Use origin for a cleaner share link
     
     let link = "";
     switch (platform) {
@@ -57,7 +59,7 @@ export function ResultCard({ scan }: ResultCardProps) {
         link = `https://wa.me/?text=${encodeURIComponent(text + " " + url)}`;
         break;
       case "email":
-        link = `mailto:?subject=Real Check AI Report&body=${encodeURIComponent(text + "\n\n" + url)}`;
+        link = `mailto:?subject=Real Check AI Analysis Report&body=${encodeURIComponent(text + "\n\n" + url + "\n\nFile Name: " + scan.fileName + "\nResult: " + scan.result + "\nConfidence: " + scan.confidence + "%")}`;
         break;
       case "telegram":
         link = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
@@ -67,22 +69,62 @@ export function ResultCard({ scan }: ResultCardProps) {
   };
 
   const downloadReport = () => {
-    const element = document.createElement("a");
-    const file = new Blob([
-      `REAL CHECK AI - ANALYSIS REPORT\n\n` +
-      `File: ${scan.fileName}\n` +
-      `Type: ${scan.type}\n` +
-      `Date: ${new Date(scan.createdAt).toLocaleString()}\n\n` +
-      `RESULT: ${scan.result.toUpperCase()}\n` +
-      `CONFIDENCE: ${scan.confidence}%\n\n` +
-      `ANALYSIS:\n${scan.analysis}\n`
-    ], { type: 'text/plain' });
+    const doc = new jsPDF();
     
-    element.href = URL.createObjectURL(file);
-    element.download = `RealCheck_Report_${scan.id}.txt`;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
+    // Add Branding
+    doc.setFillColor(15, 20, 25); // Deep Navy
+    doc.rect(0, 0, 210, 40, 'F');
+    
+    doc.setTextColor(0, 212, 255); // Electric Blue
+    doc.setFontSize(24);
+    doc.setFont("helvetica", "bold");
+    doc.text("REAL CHECK AI", 105, 25, { align: "center" });
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(10);
+    doc.text("Verify Reality in the Age of AI", 105, 32, { align: "center" });
+
+    // Report Header
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(18);
+    doc.text("Analysis Report", 20, 55);
+    
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Report ID: #RCAI-${scan.id}-${Date.now().toString().slice(-4)}`, 20, 65);
+    doc.text(`Generated On: ${new Date().toLocaleString()}`, 20, 72);
+
+    // Main Table
+    (doc as any).autoTable({
+      startY: 80,
+      head: [['Category', 'Details']],
+      body: [
+        ['File Name', scan.fileName],
+        ['Media Type', scan.type.toUpperCase()],
+        ['Verdict', scan.result.toUpperCase()],
+        ['Confidence Score', `${scan.confidence}%`],
+      ],
+      headStyles: { fillStyle: [0, 212, 255], textColor: [255, 255, 255] },
+      alternateRowStyles: { fillColor: [240, 240, 240] },
+    });
+
+    // Analysis Section
+    const finalY = (doc as any).lastAutoTable.finalY || 120;
+    doc.setFont("helvetica", "bold");
+    doc.text("Forensic Analysis Details:", 20, finalY + 15);
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    const splitText = doc.splitTextToSize(scan.analysis, 170);
+    doc.text(splitText, 20, finalY + 25);
+
+    // Footer
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text("Created by Shankar Janamoni", 105, 280, { align: "center" });
+    doc.text("© 2025 Real Check AI - Professional Deepfake Detection", 105, 285, { align: "center" });
+
+    doc.save(`RealCheck_Report_${scan.fileName.replace(/\s+/g, '_')}.pdf`);
   };
 
   return (
